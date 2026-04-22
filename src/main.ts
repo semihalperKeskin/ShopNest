@@ -6,12 +6,12 @@ import * as cookieParser from "cookie-parser";
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const port = process.env.PORT ?? 3000;
-  await app.listen(port);
+  app.use(cookieParser());
   app.enableCors({
     origin: "http://localhost:5173",
     Credential: true,
   });
-  app.use(cookieParser());
+  await app.listen(port);
   console.log(`🚀 Uygulama şu adreste çalışıyor: http://localhost:${port}`);
 }
 bootstrap();

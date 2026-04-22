@@ -8,7 +8,6 @@ import { RegisterUser } from "./dto/register.dto";
 import * as bcrypt from "bcrypt";
 import { PrismaService } from "src/prisma/prisma.service";
 import { JwtService } from "@nestjs/jwt";
-import { Request } from "express";
 
 @Injectable()
 export class AuthService {
@@ -67,8 +66,25 @@ export class AuthService {
     });
   }
 
-  refresh(req: Request) {
-    console.log(req.body);
-    return "req";
+  async refresh(refreshToken: string | undefined) {
+    if (!refreshToken) throw new UnauthorizedException();
+
+    try {
+      const payload = await this.jwtService.verifyAsync<{
+        sub: string;
+        email: string;
+      }>(refreshToken);
+
+      if (!payload) throw new UnauthorizedException();
+
+      const newRefreshToken = await this.jwtService.signAsync({
+        sub: payload.sub,
+        email: payload.email,
+      });
+
+      return newRefreshToken;
+    } catch {
+      return new UnauthorizedException();
+    }
   }
 }

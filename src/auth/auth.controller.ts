@@ -24,6 +24,8 @@ export class AuthController {
 
     return {
       mesaj: "Giriş başarılı!",
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
     };
   }
 
@@ -31,7 +33,6 @@ export class AuthController {
   @Post("register")
   @UsePipes(new ZodValidationPipe(RegisterUserSchema))
   async register(@Body() registerUser: RegisterUser) {
-    console.log("registerUser controller", registerUser);
     const user = await this.authService.register(registerUser);
 
     return {
@@ -40,9 +41,19 @@ export class AuthController {
     };
   }
 
+  @Public()
   @Post("refresh")
-  refresh(@Req() req: Request) {
-    return this.authService.refresh(req);
+  async refresh(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const refreshToken = req.cookies["refreshToken"] as string | undefined;
+
+    const newRefreshToken = await this.authService.refresh(refreshToken);
+
+    res.cookie("refreshToken", newRefreshToken, { httpOnly: true });
+
+    return true;
   }
 
   @Post("logout")
