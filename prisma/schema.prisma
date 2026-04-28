@@ -13,20 +13,27 @@ datasource db {
 }
 
 model User {
-  id    String @id @default(uuid())
-  email String  @unique
-  name  String
+  id       String @id @default(uuid())
+  email    String @unique
+  name     String
   password String
-} 
+}
 
 model Product {
-  id String @id @default(uuid())
-  name String
+  id          String    @id @default(uuid())
+  name        String
   description String?
-  price Float
-  stock Int
-  imageUrl String?
-  category String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  price       Float
+  stock       Int
+  imageUrl    String?
+  categoryId  String
+  category    Category? @relation(fields: [categoryId], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Category {
+  id       String    @id @default(uuid())
+  name     String
+  products Product[]
 }
