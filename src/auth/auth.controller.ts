@@ -1,14 +1,27 @@
-import { Body, Controller, Post, Req, Res, UsePipes } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Post,
+  Req,
+  Res,
+  UnauthorizedException,
+  UsePipes,
+} from "@nestjs/common";
 import { AuthService } from "./auth.service";
 import { LoginUser, LoginUserSchema } from "./dto/login.dto";
 import { RegisterUser, RegisterUserSchema } from "./dto/register.dto";
 import { ZodValidationPipe } from "src/common/pipes/zod.validation";
 import { Public } from "./decorators/public.decorator";
 import { Request, Response } from "express";
+import { JwtService } from "@nestjs/jwt";
+import { JwtPayload } from "src/types/request.type";
 
 @Controller("auth")
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly jwtService: JwtService,
+  ) {}
 
   @Public()
   @Post("login")
@@ -22,23 +35,14 @@ export class AuthController {
     res.cookie("refreshToken", tokens.refreshToken, { httpOnly: true });
     res.cookie("accessToken", tokens.accessToken, { httpOnly: true });
 
-    return {
-      mesaj: "Giriş başarılı!",
-      accessToken: tokens.accessToken,
-      refreshToken: tokens.refreshToken,
-    };
+    return { message: "Giriş işlemi başarılı!" };
   }
 
   @Public()
   @Post("register")
   @UsePipes(new ZodValidationPipe(RegisterUserSchema))
-  async register(@Body() registerUser: RegisterUser) {
-    const user = await this.authService.register(registerUser);
-
-    return {
-      message: "Kayıt başarılı!",
-      user: user,
-    };
+  register(@Body() registerUser: RegisterUser) {
+    return this.authService.register(registerUser);
   }
 
   @Public()
@@ -47,13 +51,26 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const refreshToken = req.cookies["refreshToken"] as string | undefined;
+    try {
+      const refreshToken = req.cookies["refreshToken"] as string | undefined;
 
-    const newRefreshToken = await this.authService.refresh(refreshToken);
+      if (!refreshToken)
+        throw new UnauthorizedException("Refresh token bulunamadı.");
 
-    res.cookie("refreshToken", newRefreshToken, { httpOnly: true });
+      const payload =
+        await this.jwtService.verifyAsync<JwtPayload>(refreshToken);
 
-    return true;
+      const tokens = await this.authService.refresh(payload.sub);
+
+      res.cookie("refreshToken", tokens.refreshToken, { httpOnly: true });
+      res.cookie("accessToken", tokens.accessToken, { httpOnly: true });
+
+      return { message: "Oturum yenilendi!" };
+    } catch {
+      throw new UnauthorizedException(
+        "Geçersiz veya süresi dolmuş refresh token! Tekrar giriş yapın.",
+      );
+    }
   }
 
   @Post("logout")

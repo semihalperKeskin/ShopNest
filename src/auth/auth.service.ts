@@ -17,11 +17,11 @@ export class AuthService {
   ) {}
 
   async login(loginUser: LoginUser) {
-    const user = await this.prisma.user.findFirst({
+    const user = await this.prisma.user.findUnique({
       where: { email: loginUser.email },
     });
 
-    if (!user) throw new UnauthorizedException();
+    if (!user) throw new UnauthorizedException("E-posta veya şifre hatalı.");
 
     const passwordCompare = await bcrypt.compare(
       loginUser.password,
@@ -36,10 +36,9 @@ export class AuthService {
 
     const refreshToken = await this.jwtService.signAsync(payload);
 
-    const accessToken = await this.jwtService.signAsync(
-      { email: user.email },
-      { expiresIn: "1h" },
-    );
+    const accessToken = await this.jwtService.signAsync(payload, {
+      expiresIn: "1h",
+    });
 
     return {
       refreshToken: refreshToken,
@@ -48,7 +47,6 @@ export class AuthService {
   }
 
   async register(registerUser: RegisterUser) {
-    console.log("user", registerUser);
     const existing = await this.prisma.user.findUnique({
       where: { email: registerUser.email },
     });
@@ -56,35 +54,36 @@ export class AuthService {
     if (existing) throw new ConflictException("Email already in use");
 
     const saltOrRounds = 10;
-    const password = await bcrypt.hash(registerUser.password, saltOrRounds);
-    return this.prisma.user.create({
+    const hashedPassword = await bcrypt.hash(
+      registerUser.password,
+      saltOrRounds,
+    );
+    await this.prisma.user.create({
       data: {
         email: registerUser.email,
         name: registerUser.name,
-        password: password,
+        password: hashedPassword,
       },
     });
+
+    return { message: "Kayıt başarılı!" };
   }
 
-  async refresh(refreshToken: string | undefined) {
-    if (!refreshToken) throw new UnauthorizedException();
-
+  async refresh(sub: string) {
     try {
-      const payload = await this.jwtService.verifyAsync<{
-        sub: string;
-        email: string;
-      }>(refreshToken);
+      const payload = { sub: sub };
 
-      if (!payload) throw new UnauthorizedException();
-
-      const newRefreshToken = await this.jwtService.signAsync({
-        sub: payload.sub,
-        email: payload.email,
+      const refreshToken = await this.jwtService.signAsync(payload);
+      const accessToken = await this.jwtService.signAsync(payload, {
+        expiresIn: "1h",
       });
 
-      return newRefreshToken;
+      return {
+        accessToken: accessToken,
+        refreshToken: refreshToken,
+      };
     } catch {
-      return new UnauthorizedException();
+      throw new UnauthorizedException();
     }
   }
 }
